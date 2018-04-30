@@ -93,7 +93,7 @@ public class MainActivity extends AppCompatActivity implements AwsIotHelper.List
         tvStatus.setText(status.toString());
         switch (status) {
             case Connected:
-                helper.subscribe("sdk/test/Python");
+                helper.subscribe(etTopicName.getText().toString());
                 newFragment.show(getSupportFragmentManager(), "");
                 break;
             case ConnectionLost:
