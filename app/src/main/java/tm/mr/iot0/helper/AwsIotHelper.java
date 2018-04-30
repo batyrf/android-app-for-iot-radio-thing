@@ -130,14 +130,23 @@ public class AwsIotHelper implements AWSIotMqttClientStatusCallback, AWSIotMqttN
         new Thread(new Runnable() {
             @Override
             public void run() {
-                mqttManager = createMqttManager();
-                keyStore = loadKeystore(context, context.getFilesDir().getPath(), KEYSTORE_NAME, KEYSTORE_PASSWORD, CERTIFICATE_ID);
-                ((Activity) context).runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        listener.onSetUp();
-                    }
-                });
+                try {
+                    mqttManager = createMqttManager();
+                    keyStore = loadKeystore(context, context.getFilesDir().getPath(), KEYSTORE_NAME, KEYSTORE_PASSWORD, CERTIFICATE_ID);
+                    ((Activity) context).runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            listener.onSetUp();
+                        }
+                    });
+                } catch (final Exception e) {
+                    ((Activity) context).runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            listener.onError(e.getMessage());
+                        }
+                    });
+                }
             }
         }).start();
     }
@@ -205,6 +214,8 @@ public class AwsIotHelper implements AWSIotMqttClientStatusCallback, AWSIotMqttN
         void onStatusChanged(AWSIotMqttClientStatus status);
 
         void onMessageArrived(JSONObject json);
+
+        void onError(String sErrorMessage);
     }
 
 }

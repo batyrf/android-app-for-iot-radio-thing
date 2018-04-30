@@ -2,7 +2,36 @@
 <android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:padding="8dp">
+
+
+    <android.support.v7.widget.AppCompatEditText
+        android:id="@+id/etEndpoint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="endpoint" />
+
+    <android.support.v7.widget.AppCompatEditText
+        android:id="@+id/etCognitoPoolId"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Cognito Pool Id"
+        app:layout_constraintTop_toBottomOf="@id/etEndpoint" />
+
+    <android.support.v7.widget.AppCompatEditText
+        android:id="@+id/etPolicyName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Policy Name"
+        app:layout_constraintTop_toBottomOf="@id/etCognitoPoolId" />
+
+    <android.support.v7.widget.AppCompatEditText
+        android:id="@+id/etTopicName"
+        android:layout_width="match_parent"
+        android:hint="topic name"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@id/etPolicyName" />
 
 
     <android.support.v7.widget.AppCompatTextView
