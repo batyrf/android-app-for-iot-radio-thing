@@ -1,80 +1,100 @@
 package tm.mr.iot0;
 
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.annotation.Nullable;
+import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.AppCompatButton;
+import android.support.v7.widget.AppCompatTextView;
+import android.util.Log;
+import android.view.View;
 
 import com.amazonaws.mobileconnectors.iot.AWSIotMqttClientStatusCallback;
-import com.amazonaws.mobileconnectors.iot.AWSIotMqttNewMessageCallback;
 import com.amazonaws.regions.Regions;
 
-import tm.mr.iot0.helper.Helper;
+import org.json.JSONObject;
 
-public class MainActivity extends AppCompatActivity implements Helper.Listener, AWSIotMqttClientStatusCallback, AWSIotMqttNewMessageCallback {
+import butterknife.BindView;
+import butterknife.ButterKnife;
+import tm.mr.iot0.helper.AwsIotHelper;
 
-    Helper helper;
+/**
+ * Created by viridis on 29.04.2018.
+ */
+
+public class MainActivity extends AppCompatActivity implements AwsIotHelper.Listener, RadioDialogFragment.OnSendCmdListener {
+
+    public static final String TAG = "ANDNERD";
+    AwsIotHelper helper;
+    @BindView(R.id.tvStatus)
+    AppCompatTextView tvStatus;
+    @BindView(R.id.btnConnect)
+    AppCompatButton btnConnect;
+    RadioDialogFragment newFragment;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        helper = Helper.getInstance(
+        setContentView(R.layout.main_activity);
+        ButterKnife.bind(this);
+
+        helper = AwsIotHelper.getInstance(
                 getResources().getString(R.string.endpoint),
                 getResources().getString(R.string.cognito_pool_id),
                 getResources().getString(R.string.policy_name),
                 Regions.US_EAST_2);
 
-        helper.setup(this, this);
-        helper.connect(this);
-        helper.subscribe("", this);
-        helper.publish("","");
+        helper.setup(this);
+        btnConnect.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                helper.connect();
+
+            }
+        });
+
+        newFragment = new RadioDialogFragment();
+        newFragment.setCancelable(false);
     }
 
     @Override
-    protected void onStart() {
-        super.onStart();
+    public void onSetUpStart() {
+        tvStatus.setText("setting up...");
+        btnConnect.setEnabled(false);
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
+    public void onSetUp() {
+        tvStatus.setText("setting up is done");
+        btnConnect.setEnabled(true);
     }
 
     @Override
-    protected void onPause() {
-        super.onPause();
+    public void onStatusChanged(AWSIotMqttClientStatusCallback.AWSIotMqttClientStatus status) {
+        Log.d(TAG, "onStatusChanged: " + status);
+        tvStatus.setText(status.toString());
+        switch (status) {
+            case Connected:
+                helper.subscribe("sdk/test/Python");
+                newFragment.show(getSupportFragmentManager(), "");
+                break;
+            case ConnectionLost:
+                newFragment.dismiss();
+                break;
+            case Connecting:
+            case Reconnecting:
+            default:
+                break;
+        }
     }
 
     @Override
-    protected void onStop() {
-        super.onStop();
+    public void onMessageArrived(JSONObject json) {
+        Log.d(TAG, "onMessageArrived: " + json.toString());
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        helper.disconnect();
+    public void onSendCmd(String sJson) {
+        helper.publish(sJson);
     }
 
-    //Helper.Listener
-    @Override
-    public void settingUp() {
-
-    }
-
-    @Override
-    public void setUp() {
-
-    }
-
-    //AWSIotMqttClientStatusCallback
-    @Override
-    public void onStatusChanged(AWSIotMqttClientStatus status, Throwable throwable) {
-
-    }
-
-    //AWSIotMqttNewMessageCallback
-    @Override
-    public void onMessageArrived(String topic, byte[] data) {
-
-    }
 }

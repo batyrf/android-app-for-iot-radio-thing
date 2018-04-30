@@ -1,7 +1,7 @@
 package tm.mr.iot0.helper;
 
+import android.app.Activity;
 import android.content.Context;
-import android.os.Bundle;
 import android.util.Log;
 
 import com.amazonaws.auth.CognitoCachingCredentialsProvider;
@@ -18,6 +18,10 @@ import com.amazonaws.services.iot.model.AttachPrincipalPolicyRequest;
 import com.amazonaws.services.iot.model.CreateKeysAndCertificateRequest;
 import com.amazonaws.services.iot.model.CreateKeysAndCertificateResult;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.UnsupportedEncodingException;
 import java.security.KeyStore;
 import java.util.UUID;
 
@@ -25,7 +29,7 @@ import java.util.UUID;
  * Created by viridis on 17.04.2018.
  */
 
-public class Helper {
+public class AwsIotHelper implements AWSIotMqttClientStatusCallback, AWSIotMqttNewMessageCallback {
 
     private static final String KEYSTORE_NAME = "iot_keystore";
     private static final String KEYSTORE_PASSWORD = "password";
@@ -39,16 +43,19 @@ public class Helper {
     private Regions my_region;
     private AWSIotMqttManager mqttManager;
     private KeyStore keyStore;
+    private Context context;
+    private Listener listener;
+    private String sTopic;
 
-    private static Helper INSTANCE;
+    private static AwsIotHelper INSTANCE;
 
-    public static Helper getInstance(String customer_specific_endpoint, String cognito_pool_id, String aws_iot_policy_name, Regions my_region) {
+    public static AwsIotHelper getInstance(String customer_specific_endpoint, String cognito_pool_id, String aws_iot_policy_name, Regions my_region) {
         if (INSTANCE == null)
-            INSTANCE = new Helper(customer_specific_endpoint, cognito_pool_id, aws_iot_policy_name, my_region);
+            INSTANCE = new AwsIotHelper(customer_specific_endpoint, cognito_pool_id, aws_iot_policy_name, my_region);
         return INSTANCE;
     }
 
-    private Helper(String customer_specific_endpoint, String cognito_pool_id, String aws_iot_policy_name, Regions my_region) {
+    private AwsIotHelper(String customer_specific_endpoint, String cognito_pool_id, String aws_iot_policy_name, Regions my_region) {
         this.customer_specific_endpoint = customer_specific_endpoint;
         this.cognito_pool_id = cognito_pool_id;
         this.aws_iot_policy_name = aws_iot_policy_name;
@@ -111,31 +118,46 @@ public class Helper {
         return true;
     }
 
-    public void setup(final Context context, final Listener listener) {
-        listener.settingUp();
+    public void setup(final Context context) {
+        this.context = context;
+        if (context instanceof Listener) {
+            this.listener = (Listener) context;
+        } else {
+            throw new RuntimeException(context.toString() + " must implement AwsIotHelper.Listener");
+        }
+
+        listener.onSetUpStart();
         new Thread(new Runnable() {
             @Override
             public void run() {
                 mqttManager = createMqttManager();
                 keyStore = loadKeystore(context, context.getFilesDir().getPath(), KEYSTORE_NAME, KEYSTORE_PASSWORD, CERTIFICATE_ID);
-                listener.setUp();
+                ((Activity) context).runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        listener.onSetUp();
+                    }
+                });
             }
         }).start();
     }
 
-    public void connect(AWSIotMqttClientStatusCallback callback) {
+    public void connect() {
         if (mqttManager != null)
-            mqttManager.connect(keyStore, callback);
+            mqttManager.connect(keyStore, this);
     }
 
-    public void subscribe(String topic, AWSIotMqttNewMessageCallback callback) {
-        if (mqttManager != null && checkIfConnected())
-            mqttManager.subscribeToTopic(topic, AWSIotMqttQos.QOS0, callback);
+    public void subscribe(String topic) {
+        if (mqttManager != null && checkIfConnected()) {
+            this.sTopic = topic;
+            mqttManager.subscribeToTopic(topic, AWSIotMqttQos.QOS0, this);
+        }
     }
 
-    public void publish(String msg, String topic) {
-        if (mqttManager != null && checkIfConnected())
-            mqttManager.publishString(msg, topic, AWSIotMqttQos.QOS0);
+
+    public void publish(String msg) {
+        if (mqttManager != null && checkIfConnected() && getsTopic() != null)
+            mqttManager.publishString(msg, getsTopic(), AWSIotMqttQos.QOS0);
     }
 
     public boolean disconnect() {
@@ -144,9 +166,45 @@ public class Helper {
         return false;
     }
 
+    public String getsTopic() {
+        return sTopic;
+    }
+
+    @Override
+    public void onStatusChanged(final AWSIotMqttClientStatus status, Throwable throwable) {
+        ((Activity) context).runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                listener.onStatusChanged(status);
+            }
+        });
+    }
+
+    @Override
+    public void onMessageArrived(String topic, byte[] data) {
+        try {
+            final JSONObject jsonObj = new JSONObject(new String(data, "UTF-8"));
+            ((Activity) context).runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    listener.onMessageArrived(jsonObj);
+                }
+            });
+        } catch (JSONException e) {
+            e.printStackTrace();
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+    }
+
     public interface Listener {
-        void settingUp();
-        void setUp();
+        void onSetUpStart();
+
+        void onSetUp();
+
+        void onStatusChanged(AWSIotMqttClientStatus status);
+
+        void onMessageArrived(JSONObject json);
     }
 
 }
